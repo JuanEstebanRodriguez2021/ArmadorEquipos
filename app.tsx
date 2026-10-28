@@ -27,6 +27,67 @@ const formations: Record<number, Position[]> = {
   11: ['ARQ', 'DEF', 'DEF', 'DEF', 'DEF', 'MED', 'MED', 'MED', 'DEL', 'DEL', 'DEL'],
 }
 
+type TeamInfo = { name: string; color: string }
+
+// Dark enough for white text on the jerseys
+const teamColors = [
+  '#3976e8', '#ef755f', '#d63b3b', '#2f9e5b', '#7b5cd6',
+  '#e8892b', '#1a9aa0', '#d6457f', '#b8901f', '#1f2a24',
+]
+
+const defaultTeams: [TeamInfo, TeamInfo] = [
+  { name: 'Equipo Azul', color: '#3976e8' },
+  { name: 'Equipo Coral', color: '#ef755f' },
+]
+
+const benchColor = '#9aa6a0'
+
+function TeamEditor({
+  label,
+  team,
+  onChange,
+}: {
+  label: string
+  team: TeamInfo
+  onChange: (team: TeamInfo) => void
+}) {
+  return (
+    <div className="team-editor">
+      <label>
+        {label}
+        <input
+          value={team.name}
+          maxLength={20}
+          placeholder="Nombre del equipo"
+          onChange={(e) => onChange({ ...team, name: e.target.value })}
+          onBlur={() => !team.name.trim() && onChange({ ...team, name: label })}
+        />
+      </label>
+      <div className="swatches" role="radiogroup" aria-label={`Color de ${team.name || label}`}>
+        {teamColors.map((color) => (
+          <button
+            key={color}
+            type="button"
+            role="radio"
+            aria-checked={team.color === color}
+            aria-label={`Color ${color}`}
+            className={`swatch ${team.color === color ? 'selected' : ''}`}
+            style={{ background: color }}
+            onClick={() => onChange({ ...team, color })}
+          />
+        ))}
+        <label
+          className={`swatch swatch-custom ${teamColors.includes(team.color) ? '' : 'selected'}`}
+          title="Otro color"
+          style={teamColors.includes(team.color) ? undefined : { background: team.color }}
+        >
+          <input type="color" value={team.color} onChange={(e) => onChange({ ...team, color: e.target.value })} />
+        </label>
+      </div>
+    </div>
+  )
+}
+
 type IconName = 'users' | 'plus' | 'sparkle' | 'trash' | 'chevron' | 'shield' | 'trophy' | 'swap'
 
 function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
@@ -164,6 +225,7 @@ export default function App() {
   const [teams, setTeams] = useState<[Player[], Player[]]>(() => splitTeams(starters, 7))
   const [activeTeam, setActiveTeam] = useState<'a' | 'b'>('a')
   const [formOpen, setFormOpen] = useState(false)
+  const [teamInfo, setTeamInfo] = useState<[TeamInfo, TeamInfo]>(defaultTeams)
   const [newPlayer, setNewPlayer] = useState({ name: '', position: 'MED' as Position, skill: 7, fitness: 7 })
   const single = teamCount === 1
   const required = teamSize * teamCount
@@ -177,7 +239,20 @@ export default function App() {
   const balance = hasTeams ? Math.max(0, Math.round(100 - difference * 18)) : 0
   // In single-team mode the ring shows the starters' average on a 0–100 scale
   const ringValue = single ? Math.round(averages[0] * 10) : balance
-  const squadNames = single ? ['Titulares', 'Suplentes'] : ['Equipo Azul', 'Equipo Coral']
+  const teamName = (index: 0 | 1) => teamInfo[index].name.trim() || defaultTeams[index].name
+  const squadNames = single ? [teamName(0), 'Suplentes'] : [teamName(0), teamName(1)]
+  const colorVars = {
+    '--team-a': teamInfo[0].color,
+    '--team-b': single ? benchColor : teamInfo[1].color,
+  } as CSSProperties
+
+  const updateTeam = (index: 0 | 1, info: TeamInfo) => {
+    setTeamInfo((current) => {
+      const next: [TeamInfo, TeamInfo] = [current[0], current[1]]
+      next[index] = info
+      return next
+    })
+  }
 
   const generate = () => {
     setTeams(buildTeams(players, teamSize, teamCount))
@@ -223,7 +298,7 @@ export default function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" style={colorVars}>
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark"><Icon name="shield" size={22} /></span>
@@ -231,7 +306,6 @@ export default function App() {
         </div>
         <div className="topbar-title">
           <strong>Armador de equipos</strong>
-          <span>Partido del sábado</span>
         </div>
         <div className="topbar-controls">
           <div className="format-control" aria-label="Cantidad de equipos">
@@ -338,18 +412,18 @@ export default function App() {
           {single ? (
             <div className="team-tabs single">
               <button className="active team-a">
-                <span>Titulares</span>
+                <span><i className="team-dot" />{teamName(0)} · Titulares</span>
                 <strong>{averages[0].toFixed(1)}</strong>
               </button>
             </div>
           ) : (
             <div className="team-tabs">
-              <button className={activeTeam === 'a' ? 'active team-a' : ''} onClick={() => setActiveTeam('a')}>
-                <span>Equipo Azul</span>
+              <button className={activeTeam === 'a' ? 'active team-a' : 'team-a'} onClick={() => setActiveTeam('a')}>
+                <span><i className="team-dot" />{teamName(0)}</span>
                 <strong>{averages[0].toFixed(1)}</strong>
               </button>
-              <button className={activeTeam === 'b' ? 'active team-b' : ''} onClick={() => setActiveTeam('b')}>
-                <span>Equipo Coral</span>
+              <button className={activeTeam === 'b' ? 'active team-b' : 'team-b'} onClick={() => setActiveTeam('b')}>
+                <span><i className="team-dot" />{teamName(1)}</span>
                 <strong>{averages[1].toFixed(1)}</strong>
               </button>
             </div>
@@ -391,9 +465,17 @@ export default function App() {
               )}
             </div>
             <div className="balance-bars">
-              <div><span>{single ? 'Titul.' : 'Azul'}</span><i><b style={{ width: `${averages[0] * 10}%` }} /></i><strong>{averages[0].toFixed(1)}</strong></div>
-              <div><span>{single ? 'Supl.' : 'Coral'}</span><i><b style={{ width: `${averages[1] * 10}%` }} /></i><strong>{averages[1].toFixed(1)}</strong></div>
+              <div><span>{single ? 'Titulares' : teamName(0)}</span><i><b style={{ width: `${averages[0] * 10}%` }} /></i><strong>{averages[0].toFixed(1)}</strong></div>
+              <div><span>{single ? 'Suplentes' : teamName(1)}</span><i><b style={{ width: `${averages[1] * 10}%` }} /></i><strong>{averages[1].toFixed(1)}</strong></div>
             </div>
+          </div>
+
+          <div className="customize-card">
+            <span className="eyebrow">PERSONALIZA {single ? 'TU EQUIPO' : 'TUS EQUIPOS'}</span>
+            <TeamEditor label={single ? 'Tu equipo' : 'Equipo 1'} team={teamInfo[0]} onChange={(info) => updateTeam(0, info)} />
+            {!single && (
+              <TeamEditor label="Equipo 2" team={teamInfo[1]} onChange={(info) => updateTeam(1, info)} />
+            )}
           </div>
 
           <div className="detail-heading">

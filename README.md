@@ -35,6 +35,7 @@ The UI was designed in Figma Make and implemented with React, TypeScript and Vit
 - **Player roster.** Add players with a name, position (goalkeeper, defender, midfielder, forward) and skill level (5–10), and remove them. The roster starts empty.
 - **One or two teams.** Build a single team with substitutes, or two balanced teams.
 - **Match formats.** Five-, six-, seven-, eight- and eleven-a-side (F5, F6, F7, F8, F11), available in both modes.
+- **Team customization.** Rename each team and choose its color from a preset palette or a custom color picker. The color is applied to the jerseys, tabs, bars and squad lists.
 - **Pitch view.** Shows the line-up in a suggested formation for the selected format.
 - **Rating indicators.**
   - Two-team mode shows a 0–100 balance score and the rating difference between the teams.
@@ -132,6 +133,7 @@ ArmadorEquipos/
 └── .gitignore        # Excludes node_modules and dist
 ```
 
+
 ## How It Works
 
 ### Player rating
@@ -175,6 +177,10 @@ Requires at least `team size` players. When the team is generated, the app:
 
 Players added after the team is generated join the bench automatically. The team level is the starters' average rating on a 0–100 scale.
 
+### Team names and colors
+
+Team names (up to 20 characters) and colors are set in the **Personaliza tus equipos** card. Colors are passed to the stylesheet as the CSS variables `--team-a` and `--team-b`, and light tints are derived with `color-mix()`. In one-team mode only the first team can be customized, and the bench uses a neutral gray.
+
 The UI shows all labels in Spanish.
 
 ## Supported Formats
@@ -212,7 +218,7 @@ Because `npm run build` produces a fully static site, `dist/` can also be hosted
 
 ## Known Limitations
 
-- **No persistence.** The roster and teams reset when the page is reloaded.
+- **No persistence.** The roster, teams, names and colors reset when the page is reloaded.
 - **Fitness is fixed for new players.** The add-player form sets skill only; fitness defaults to 7.
 - **Spanish only.** The interface is in Spanish.
 
@@ -224,8 +230,8 @@ Because `npm run build` produces a fully static site, `dist/` can also be hosted
 
 ## Author
 
-**Juan Esteban Rodríguez Céspedes**
-**Bogotá D.C, Colombia**
+**Juan Esteban Rodriguez**
 
+Bogotá D.C, Colombia, 2026
 
 - GitHub: [@JuanEstebanRodriguez2021](https://github.com/JuanEstebanRodriguez2021)
