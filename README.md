@@ -1,6 +1,13 @@
-# Paridad — Balanced Team Builder
+# Paridad — Team Builder
 
-Paridad is a single-page web application for organizing amateur football (soccer) matches. It lets you register the players attending a match, then splits them into two teams with the closest possible average rating. You can see each team on a pitch view and adjust the line-ups manually.
+Paridad is a single-page web application for organizing amateur football (soccer) matches. You register the players attending a match, and the app does one of two things:
+
+- **Two teams:** splits the players into two teams with the closest possible average rating.
+- **One team:** picks the best starting line-up for the chosen format and puts everyone else on the bench.
+
+Both modes show the line-up on a pitch view, and you can adjust the teams manually.
+
+**Live demo:** [armadorequiposparidad.vercel.app](https://armadorequiposparidad.vercel.app)
 
 The UI was designed in Figma Make and implemented with React, TypeScript and Vite.
 
@@ -14,34 +21,37 @@ The UI was designed in Figma Make and implemented with React, TypeScript and Vit
 - [Getting Started](#getting-started)
 - [Available Scripts](#available-scripts)
 - [Project Structure](#project-structure)
-- [How the Balancing Works](#how-the-balancing-works)
+- [How It Works](#how-it-works)
 - [Supported Formats](#supported-formats)
 - [Deployment](#deployment)
 - [Known Limitations](#known-limitations)
 - [Contributing](#contributing)
-- [Collaborators](#collaborators)
+- [Author](#author)
 
 ---
 
 ## Features
 
-- **Player roster.** Add players with a name, position (goalkeeper, defender, midfielder, forward) and skill level (5–10), and remove them.
-- **Match formats.** Five-, six-, seven-, eight- and eleven-a-side (F5, F6, F7, F8, F11).
-- **Automatic team generation.** Splits the roster into two balanced teams, *Blue* and *Coral*.
-- **Pitch view.** Shows each team in a suggested formation for the selected format.
-- **Balance indicator.** A 0–100 balance score, the rating difference between the teams, and a bar comparison.
-- **Manual adjustments.** Move any player to the other team from the squad list.
+- **Player roster.** Add players with a name, position (goalkeeper, defender, midfielder, forward) and skill level (5–10), and remove them. The roster starts empty.
+- **One or two teams.** Build a single team with substitutes, or two balanced teams.
+- **Match formats.** Five-, six-, seven-, eight- and eleven-a-side (F5, F6, F7, F8, F11), available in both modes.
+- **Pitch view.** Shows the line-up in a suggested formation for the selected format.
+- **Rating indicators.**
+  - Two-team mode shows a 0–100 balance score and the rating difference between the teams.
+  - One-team mode shows the team's average level.
+- **Manual adjustments.** Move players between the two teams, or between starters and substitutes.
 - **Responsive layout.** Three columns on desktop, two on tablets and one on mobile.
 
 ## Tech Stack
 
-| Layer      | Technology                     |
-| ---------- | ------------------------------ |
-| UI library | React 19                       |
-| Language   | TypeScript 5 (strict mode)     |
-| Build tool | Vite 7                         |
-| Styling    | Tailwind CSS 4 + plain CSS     |
+| Layer      | Technology                      |
+| ---------- | ------------------------------- |
+| UI library | React 19                        |
+| Language   | TypeScript 5 (strict mode)      |
+| Build tool | Vite 7                          |
+| Styling    | Tailwind CSS 4 + plain CSS      |
 | Fonts      | DM Sans, Manrope (Google Fonts) |
+| Hosting    | Vercel                          |
 
 The application has no backend or database. All state lives in memory in the browser.
 
@@ -78,7 +88,9 @@ npm -v
    npm run dev
    ```
 
-   Open the URL printed in the terminal (by default `http://localhost:3491`). The page reloads automatically when you edit the source files.
+   Open [http://localhost:3491](http://localhost:3491). The page reloads automatically when you edit the source files.
+
+   The port is fixed to **3491** in `vite.config.ts` (`strictPort: true`). If the port is already in use, the server exits with an error rather than switching to another port.
 
 4. **Build for production**
 
@@ -96,32 +108,33 @@ npm -v
 
 ## Available Scripts
 
-| Command           | Description                                                  |
-| ----------------- | ------------------------------------------------------------ |
-| `npm run dev`     | Starts the Vite development server with hot module reloading. |
-| `npm run build`   | Runs the TypeScript type-check, then builds to `dist/`.       |
-| `npm run preview` | Serves the contents of `dist/` locally.                       |
+| Command           | Description                                                                |
+| ----------------- | -------------------------------------------------------------------------- |
+| `npm run dev`     | Starts the Vite development server on port 3491 with hot module reloading. |
+| `npm run build`   | Runs the TypeScript type-check, then builds to `dist/`.                    |
+| `npm run preview` | Serves the contents of `dist/` locally on port 3491.                       |
 
 ## Project Structure
 
+All source files live in the project root. There is no `src/` folder.
+
 ```
 ArmadorEquipos/
-├── index.html          # HTML entry point
-├── package.json        # Dependencies and scripts
-├── tsconfig.json       # TypeScript configuration
-├── vite.config.ts      # Vite configuration (React + Tailwind plugins, "@" alias)
-├── public/
-│   └── favicon.svg     # App icon
-└── src/
-    ├── main.tsx        # React entry point
-    ├── App.tsx         # Application components and logic
-    ├── index.css       # Global styles, design tokens and responsive rules
-    └── vite-env.d.ts   # Vite type declarations
+├── index.html        # HTML entry point (loads /main.tsx)
+├── main.tsx          # React entry point
+├── app.tsx           # Application components and logic
+├── index.css         # Global styles, design tokens and responsive rules
+├── vite-env.d.ts     # Vite type declarations
+├── favicon.svg       # App icon
+├── vite.config.ts    # Vite configuration (React + Tailwind plugins, port 3491)
+├── tsconfig.json     # TypeScript configuration
+├── package.json      # Dependencies and scripts
+└── .gitignore        # Excludes node_modules and dist
 ```
 
-The `@/` import alias resolves to `src/`.
+## How It Works
 
-## How the Balancing Works
+### Player rating
 
 Each player gets a **rating** that weights skill above physical condition:
 
@@ -131,7 +144,9 @@ rating = skill × 0.7 + fitness × 0.3
 
 New players get a default fitness of 7.
 
-When teams are generated, the app:
+### Two-team mode
+
+Requires at least `2 × team size` players. When teams are generated, the app:
 
 1. Sorts the roster by rating, highest first, and takes the top `2 × team size` players.
 2. Puts the two best goalkeepers on different teams.
@@ -143,13 +158,24 @@ The **balance score** compares the two teams' average ratings:
 balance = max(0, round(100 − |averageBlue − averageCoral| × 18))
 ```
 
-| Score  | Label           |
-| ------ | --------------- |
-| ≥ 90   | Very even       |
-| 75–89  | Well balanced   |
-| < 75   | Could be better |
+| Score | Label           |
+| ----- | --------------- |
+| ≥ 90  | Very even       |
+| 75–89 | Well balanced   |
+| < 75  | Could be better |
 
-The UI shows these labels in Spanish.
+### One-team mode
+
+Requires at least `team size` players. When the team is generated, the app:
+
+1. Sorts the roster by rating, highest first.
+2. Fills each slot of the format's formation with the best available player for that position.
+3. Fills any slot that has no player for its position with the best remaining player.
+4. Puts everyone else on the bench as substitutes.
+
+Players added after the team is generated join the bench automatically. The team level is the starters' average rating on a 0–100 scale.
+
+The UI shows all labels in Spanish.
 
 ## Supported Formats
 
@@ -161,31 +187,28 @@ The UI shows these labels in Spanish.
 | F8     | 8                | 1-3-2-2                              |
 | F11    | 11               | 1-4-3-3                              |
 
-The **Generate** button stays disabled until the roster has at least `2 × team size` players.
+The **Generate** button stays disabled until the roster has enough players for the selected mode and format.
 
 ## Deployment
 
-`npm run build` produces a fully static site, so `dist/` can be hosted on any static hosting service.
+The app is deployed on **Vercel** and connected to this GitHub repository. Every push to `main` triggers a new production deployment automatically.
 
-### Vercel / Netlify
+Vercel project settings:
 
-Import the repository and use these settings:
+| Setting          | Value           |
+| ---------------- | --------------- |
+| Framework preset | Vite            |
+| Build command    | `npm run build` |
+| Output directory | `dist`          |
+| Install command  | `npm install`   |
 
-- **Build command:** `npm run build`
-- **Output directory:** `dist`
+To deploy your own copy:
 
-### GitHub Pages
+1. Fork this repository.
+2. In Vercel, select **Add New → Project** and import the fork.
+3. Keep the settings above and select **Deploy**.
 
-GitHub Pages serves the site from a sub-path (`/ArmadorEquipos/`). Set the `base` option in `vite.config.ts` before building:
-
-```ts
-export default defineConfig({
-  base: '/ArmadorEquipos/',
-  // ...
-})
-```
-
-Then publish the contents of `dist/`, for example with a GitHub Actions workflow or the `gh-pages` package.
+Because `npm run build` produces a fully static site, `dist/` can also be hosted on any other static hosting service.
 
 ## Known Limitations
 
@@ -199,7 +222,10 @@ Then publish the contents of `dist/`, for example with a GitHub Actions workflow
 2. Make your changes and confirm that `npm run build` completes without errors.
 3. Commit with a descriptive message and open a pull request.
 
-## Collaborators
+## Author
 
-- Juan Esteban Rodríguez Céspedes
+**Juan Esteban Rodríguez Céspedes**
+**Bogotá D.C, Colombia**
 
+
+- GitHub: [@JuanEstebanRodriguez2021](https://github.com/JuanEstebanRodriguez2021)
