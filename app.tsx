@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 
 type Position = 'ARQ' | 'DEF' | 'MED' | 'DEL'
 type TeamCount = 1 | 2
@@ -19,28 +19,94 @@ const positionNames: Record<Position, string> = {
   DEL: 'Delantero',
 }
 
-const formations: Record<number, Position[]> = {
-  5: ['ARQ', 'DEF', 'DEF', 'DEL', 'DEL'],
-  6: ['ARQ', 'DEF', 'DEF', 'MED', 'MED', 'DEL'],
-  7: ['ARQ', 'DEF', 'DEF', 'MED', 'MED', 'DEL', 'DEL'],
-  8: ['ARQ', 'DEF', 'DEF', 'DEF', 'MED', 'MED', 'DEL', 'DEL'],
-  11: ['ARQ', 'DEF', 'DEF', 'DEF', 'DEF', 'MED', 'MED', 'MED', 'DEL', 'DEL', 'DEL'],
+/**
+ * Formations per format, written without the goalkeeper (e.g. "4-3-3").
+ * First line = defenders, last line = forwards, any lines in between = midfielders.
+ * The first option of each format is the default.
+ */
+const formationOptions: Record<number, string[]> = {
+  5: ['2-2'],
+  6: ['2-2-1', '2-1-2'],
+  7: ['2-2-2', '3-2-1', '2-3-1', '2-1-3', '3-1-2'],
+  8: [
+    '3-2-2', '3-3-1', '2-3-2', '3-1-3', '2-4-1', '4-2-1', '4-1-2', '2-2-3',
+    '3-1-2-1', '3-2-1-1', '2-3-1-1', '2-1-3-1',
+  ],
+  11: [
+    '4-3-3', '4-4-2', '4-2-3-1', '4-5-1', '4-1-4-1', '4-4-1-1', '4-3-2-1', '4-3-1-2',
+    '4-1-2-1-2', '4-2-2-2', '4-1-3-2', '4-2-4',
+    '3-5-2', '3-4-3', '3-4-1-2', '3-4-2-1', '3-1-4-2', '3-5-1-1', '3-3-3-1',
+    '5-3-2', '5-4-1', '5-2-3', '5-2-1-2',
+  ],
+}
+
+const defaultFormation = (teamSize: number) => formationOptions[teamSize][0]
+
+/** Lines of the formation from back to front, goalkeeper first. */
+function formationLines(formation: string): Position[][] {
+  const sizes = formation.split('-').map(Number)
+  const lines = sizes.map((size, index) => {
+    const role: Position = index === 0 ? 'DEF' : index === sizes.length - 1 ? 'DEL' : 'MED'
+    return Array<Position>(size).fill(role)
+  })
+  return [['ARQ'], ...lines]
+}
+
+const formationSlots = (formation: string) => formationLines(formation).flat()
+
+/** Assigns players to slots: matching positions first, then anyone left over. */
+function placePlayers(players: Player[], slots: Position[]) {
+  const remaining = [...players]
+  const placed: (Player | undefined)[] = slots.map((wanted) => {
+    const index = remaining.findIndex((player) => player.position === wanted)
+    return index >= 0 ? remaining.splice(index, 1)[0] : undefined
+  })
+  return placed.map((player) => player ?? remaining.shift())
 }
 
 type TeamInfo = { name: string; color: string }
 
-// Dark enough for white text on the jerseys
-const teamColors = [
-  '#3976e8', '#ef755f', '#d63b3b', '#2f9e5b', '#7b5cd6',
-  '#e8892b', '#1a9aa0', '#d6457f', '#b8901f', '#1f2a24',
+/** Picks dark or white text so jersey initials stay readable on any color. */
+function textOn(hex: string) {
+  const value = hex.replace('#', '')
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(value.slice(i, i + 2), 16) / 255)
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+  return luminance > 0.6 ? '#15271f' : '#ffffff'
+}
+
+const isHex = (value: string) => /^#[0-9a-f]{6}$/i.test(value)
+
+// Teams start with no name and no color: each group sets their own.
+const emptyTeams: [TeamInfo, TeamInfo] = [
+  { name: '', color: '' },
+  { name: '', color: '' },
 ]
 
-const defaultTeams: [TeamInfo, TeamInfo] = [
-  { name: 'Equipo Azul', color: '#3976e8' },
-  { name: 'Equipo Coral', color: '#ef755f' },
-]
+/** Neutral gray used until a team picks a color, and for the bench. */
+const neutralColor = '#8a968f'
+const colorOf = (team: TeamInfo) => team.color || neutralColor
 
-const benchColor = '#9aa6a0'
+/** Text field for typing a color code; only applies complete #RRGGBB values. */
+function HexInput({ value, onChange }: { value: string; onChange: (color: string) => void }) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  return (
+    <input
+      className="hex-input"
+      value={draft}
+      maxLength={7}
+      spellCheck={false}
+      aria-label="Código de color"
+      placeholder="Sin color · #RRGGBB"
+      onChange={(e) => {
+        const next = e.target.value.startsWith('#') ? e.target.value : `#${e.target.value}`
+        setDraft(next)
+        if (isHex(next)) onChange(next.toLowerCase())
+      }}
+      onBlur={() => setDraft(value)}
+    />
+  )
+}
 
 function TeamEditor({
   label,
@@ -60,29 +126,25 @@ function TeamEditor({
           maxLength={20}
           placeholder="Nombre del equipo"
           onChange={(e) => onChange({ ...team, name: e.target.value })}
-          onBlur={() => !team.name.trim() && onChange({ ...team, name: label })}
         />
       </label>
-      <div className="swatches" role="radiogroup" aria-label={`Color de ${team.name || label}`}>
-        {teamColors.map((color) => (
-          <button
-            key={color}
-            type="button"
-            role="radio"
-            aria-checked={team.color === color}
-            aria-label={`Color ${color}`}
-            className={`swatch ${team.color === color ? 'selected' : ''}`}
-            style={{ background: color }}
-            onClick={() => onChange({ ...team, color })}
-          />
-        ))}
-        <label
-          className={`swatch swatch-custom ${teamColors.includes(team.color) ? '' : 'selected'}`}
-          title="Otro color"
-          style={teamColors.includes(team.color) ? undefined : { background: team.color }}
-        >
-          <input type="color" value={team.color} onChange={(e) => onChange({ ...team, color: e.target.value })} />
-        </label>
+      <div className="color-field">
+        <span>Color</span>
+        <div className="color-picker">
+          <label
+            className={`color-preview ${team.color ? '' : 'empty'}`}
+            style={team.color ? { background: team.color } : undefined}
+            title="Elegir color"
+          >
+            <input
+              type="color"
+              value={team.color || neutralColor}
+              aria-label={`Color de ${team.name || label}`}
+              onChange={(e) => onChange({ ...team, color: e.target.value })}
+            />
+          </label>
+          <HexInput value={team.color} onChange={(color) => onChange({ ...team, color })} />
+        </div>
       </div>
     </div>
   )
@@ -142,11 +204,11 @@ function splitTeams(players: Player[], teamSize: number) {
  * Picks the best player for each slot of the formation.
  * Returns [starters, bench].
  */
-function buildSingleTeam(players: Player[], teamSize: number) {
+function buildSingleTeam(players: Player[], teamSize: number, formation: string) {
   const remaining = [...players].sort((a, b) => score(b) - score(a))
   const starters: Player[] = []
 
-  formations[teamSize].forEach((wanted) => {
+  formationSlots(formation).forEach((wanted) => {
     const index = remaining.findIndex((player) => player.position === wanted)
     if (index >= 0) starters.push(remaining.splice(index, 1)[0])
   })
@@ -156,8 +218,8 @@ function buildSingleTeam(players: Player[], teamSize: number) {
   return [starters, remaining] as [Player[], Player[]]
 }
 
-function buildTeams(players: Player[], teamSize: number, teamCount: TeamCount) {
-  return teamCount === 1 ? buildSingleTeam(players, teamSize) : splitTeams(players, teamSize)
+function buildTeams(players: Player[], teamSize: number, teamCount: TeamCount, formation: string) {
+  return teamCount === 1 ? buildSingleTeam(players, teamSize, formation) : splitTeams(players, teamSize)
 }
 
 function PlayerAvatar({ player, small = false }: { player: Player; small?: boolean }) {
@@ -169,28 +231,13 @@ function Rating({ value }: { value: number }) {
   return <span className={`rating ${tone}`}>{value.toFixed(1)}</span>
 }
 
-function Pitch({ players, teamSize, team }: { players: Player[]; teamSize: number; team: 'a' | 'b' }) {
-  const ordered = useMemo(() => {
-    const remaining = [...players]
-    return formations[teamSize]
-      .map((wanted) => {
-        let index = remaining.findIndex((player) => player.position === wanted)
-        if (index < 0) index = 0
-        return remaining.splice(index, 1)[0]
-      })
-      .filter(Boolean)
-  }, [players, teamSize])
-
-  const rows = formations[teamSize].reduce<Position[][]>((result, position) => {
-    if (position === 'ARQ') result.push([position])
-    else if (!result.length || result[result.length - 1][0] !== position) result.push([position])
-    else result[result.length - 1].push(position)
-    return result
-  }, [])
+function Pitch({ players, formation, team }: { players: Player[]; formation: string; team: 'a' | 'b' }) {
+  const lines = useMemo(() => formationLines(formation), [formation])
+  const placed = useMemo(() => placePlayers(players, lines.flat()), [players, lines])
 
   let index = 0
   return (
-    <div className={`pitch pitch-${team}`}>
+    <div className={`pitch pitch-${team} lines-${lines.length}`}>
       <div className="pitch-lines" aria-hidden="true">
         <span className="center-line" />
         <span className="center-circle" />
@@ -198,22 +245,59 @@ function Pitch({ players, teamSize, team }: { players: Player[]; teamSize: numbe
         <span className="area area-bottom" />
       </div>
       <div className="formation">
-        {rows.map((row, rowIndex) => (
-          <div className="formation-row" key={`${row[0]}-${rowIndex}`}>
-            {row.map(() => {
-              const player = ordered[index++]
+        {lines.map((line, lineIndex) => (
+          <div className="formation-row" key={lineIndex}>
+            {line.map((slot) => {
+              const player = placed[index++]
               if (!player) return null
               return (
                 <div className="pitch-player" key={player.id}>
                   <span className="jersey">{initials(player.name)}</span>
-                  <span className="pitch-name">{player.name.split(' ')[0]}</span>
-                  <span className="pitch-position">{player.position}</span>
+                  <span className="pitch-name" title={player.name}>{player.name}</span>
+                  <span className="pitch-position">
+                    {player.position === slot ? slot : `${slot} (${player.position})`}
+                  </span>
                 </div>
               )
             })}
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+function FormationPicker({
+  teamSize,
+  value,
+  onChange,
+}: {
+  teamSize: number
+  value: string
+  onChange: (formation: string) => void
+}) {
+  const options = formationOptions[teamSize]
+  if (options.length === 1) {
+    return <div className="formation-picker"><span className="formation-fixed">{value}</span><small>Única formación para F{teamSize}</small></div>
+  }
+  if (options.length <= 6) {
+    return (
+      <div className="formation-picker">
+        <div className="format-control formation-chips" role="radiogroup" aria-label="Formación">
+          {options.map((option) => (
+            <button key={option} role="radio" aria-checked={value === option} className={value === option ? 'active' : ''} onClick={() => onChange(option)}>
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="formation-picker">
+      <select className="formation-select" value={value} aria-label="Formación" onChange={(e) => onChange(e.target.value)}>
+        {options.map((option) => <option key={option} value={option}>{option}</option>)}
+      </select>
     </div>
   )
 }
@@ -225,7 +309,8 @@ export default function App() {
   const [teams, setTeams] = useState<[Player[], Player[]]>(() => splitTeams(starters, 7))
   const [activeTeam, setActiveTeam] = useState<'a' | 'b'>('a')
   const [formOpen, setFormOpen] = useState(false)
-  const [teamInfo, setTeamInfo] = useState<[TeamInfo, TeamInfo]>(defaultTeams)
+  const [teamInfo, setTeamInfo] = useState<[TeamInfo, TeamInfo]>(emptyTeams)
+  const [teamFormations, setTeamFormations] = useState<[string, string]>([defaultFormation(7), defaultFormation(7)])
   const [newPlayer, setNewPlayer] = useState({ name: '', position: 'MED' as Position, skill: 7, fitness: 7 })
   const single = teamCount === 1
   const required = teamSize * teamCount
@@ -239,11 +324,15 @@ export default function App() {
   const balance = hasTeams ? Math.max(0, Math.round(100 - difference * 18)) : 0
   // In single-team mode the ring shows the starters' average on a 0–100 scale
   const ringValue = single ? Math.round(averages[0] * 10) : balance
-  const teamName = (index: 0 | 1) => teamInfo[index].name.trim() || defaultTeams[index].name
+  // Placeholder labels only while the team has no name
+  const teamName = (index: 0 | 1) =>
+    teamInfo[index].name.trim() || (single ? 'Tu equipo' : `Equipo ${index + 1}`)
   const squadNames = single ? [teamName(0), 'Suplentes'] : [teamName(0), teamName(1)]
   const colorVars = {
-    '--team-a': teamInfo[0].color,
-    '--team-b': single ? benchColor : teamInfo[1].color,
+    '--team-a': colorOf(teamInfo[0]),
+    '--team-b': single ? neutralColor : colorOf(teamInfo[1]),
+    '--team-a-text': textOn(colorOf(teamInfo[0])),
+    '--team-b-text': textOn(single ? neutralColor : colorOf(teamInfo[1])),
   } as CSSProperties
 
   const updateTeam = (index: 0 | 1, info: TeamInfo) => {
@@ -254,20 +343,32 @@ export default function App() {
     })
   }
 
+  const shownIndex: 0 | 1 = single || activeTeam === 'a' ? 0 : 1
+  const shownFormation = teamFormations[shownIndex]
+
   const generate = () => {
-    setTeams(buildTeams(players, teamSize, teamCount))
+    setTeams(buildTeams(players, teamSize, teamCount, teamFormations[0]))
     setActiveTeam('a')
   }
 
   const changeFormat = (size: number) => {
     setTeamSize(size)
-    setTeams(buildTeams(players, size, teamCount))
+    setTeamFormations([defaultFormation(size), defaultFormation(size)])
+    setTeams(buildTeams(players, size, teamCount, defaultFormation(size)))
   }
 
   const changeTeamCount = (count: TeamCount) => {
     setTeamCount(count)
-    setTeams(buildTeams(players, teamSize, count))
+    setTeams(buildTeams(players, teamSize, count, teamFormations[0]))
     setActiveTeam('a')
+  }
+
+  const changeFormation = (formation: string) => {
+    setTeamFormations((current) => {
+      const next: [string, string] = [current[0], current[1]]
+      next[shownIndex] = formation
+      return next
+    })
   }
 
   const addPlayer = (event: FormEvent) => {
@@ -429,13 +530,14 @@ export default function App() {
             </div>
           )}
 
-          <Pitch
-            players={teams[single || activeTeam === 'a' ? 0 : 1]}
-            teamSize={teamSize}
-            team={single ? 'a' : activeTeam}
-          />
+          <div className="formation-bar">
+            <span>Formación{single ? '' : ` de ${teamName(shownIndex)}`}</span>
+            <FormationPicker teamSize={teamSize} value={shownFormation} onChange={changeFormation} />
+          </div>
+
+          <Pitch players={teams[shownIndex]} formation={shownFormation} team={single ? 'a' : activeTeam} />
           <p className="pitch-caption">
-            Formación sugerida para F{teamSize} ·{' '}
+            {shownFormation} · F{teamSize} ·{' '}
             {single ? 'Los demás jugadores quedan como suplentes' : 'Tocá un equipo para ver su nómina'}
           </p>
         </section>

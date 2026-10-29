@@ -35,8 +35,9 @@ The UI was designed in Figma Make and implemented with React, TypeScript and Vit
 - **Player roster.** Add players with a name, position (goalkeeper, defender, midfielder, forward) and skill level (5–10), and remove them. The roster starts empty.
 - **One or two teams.** Build a single team with substitutes, or two balanced teams.
 - **Match formats.** Five-, six-, seven-, eight- and eleven-a-side (F5, F6, F7, F8, F11), available in both modes.
-- **Team customization.** Rename each team and choose its color from a preset palette or a custom color picker. The color is applied to the jerseys, tabs, bars and squad lists.
-- **Pitch view.** Shows the line-up in a suggested formation for the selected format.
+- **Team customization.** Rename each team and pick any color, either with the color picker or by typing a hex code (for example `#F2D230`). The color is applied to the jerseys, tabs, bars and squad lists.
+- **Formation selection.** Choose a formation for each format. In two-team mode each team can have its own formation.
+- **Pitch view.** Shows the line-up in a suggested formation for the selected format, with each player's full name. Long names wrap onto two lines.
 - **Rating indicators.**
   - Two-team mode shows a 0–100 balance score and the rating difference between the teams.
   - One-team mode shows the team's average level.
@@ -133,7 +134,6 @@ ArmadorEquipos/
 └── .gitignore        # Excludes node_modules and dist
 ```
 
-
 ## How It Works
 
 ### Player rating
@@ -157,7 +157,7 @@ Requires at least `2 × team size` players. When teams are generated, the app:
 The **balance score** compares the two teams' average ratings:
 
 ```
-balance = max(0, round(100 − |averageBlue − averageCoral| × 18))
+balance = max(0, round(100 − |averageTeam1 − averageTeam2| × 18))
 ```
 
 | Score | Label           |
@@ -171,7 +171,7 @@ balance = max(0, round(100 − |averageBlue − averageCoral| × 18))
 Requires at least `team size` players. When the team is generated, the app:
 
 1. Sorts the roster by rating, highest first.
-2. Fills each slot of the format's formation with the best available player for that position.
+2. Fills each slot of the selected formation with the best available player for that position.
 3. Fills any slot that has no player for its position with the best remaining player.
 4. Puts everyone else on the bench as substitutes.
 
@@ -179,19 +179,25 @@ Players added after the team is generated join the bench automatically. The team
 
 ### Team names and colors
 
-Team names (up to 20 characters) and colors are set in the **Personaliza tus equipos** card. Colors are passed to the stylesheet as the CSS variables `--team-a` and `--team-b`, and light tints are derived with `color-mix()`. In one-team mode only the first team can be customized, and the bench uses a neutral gray.
+Teams start with no name and no color; each group sets their own in the **Personaliza tus equipos** card. Until then, the teams are labeled *Equipo 1* and *Equipo 2* (or *Tu equipo* in one-team mode) and shown in a neutral gray. Names can have up to 20 characters. Colors are passed to the stylesheet as the CSS variables `--team-a` and `--team-b`, and light tints are derived with `color-mix()`. The jersey text switches between white and dark depending on the color's luminance, so initials stay readable on light colors. In one-team mode only the first team can be customized, and the bench uses a neutral gray.
 
 The UI shows all labels in Spanish.
 
 ## Supported Formats
 
-| Format | Players per team | Suggested formation (GK-DEF-MID-FWD) |
-| ------ | ---------------- | ------------------------------------ |
-| F5     | 5                | 1-2-0-2                              |
-| F6     | 6                | 1-2-2-1                              |
-| F7     | 7                | 1-2-2-2                              |
-| F8     | 8                | 1-3-2-2                              |
-| F11    | 11               | 1-4-3-3                              |
+Formations are written without the goalkeeper. The first line is defenders, the last line is forwards, and any lines in between are midfielders.
+
+| Format | Players per team | Available formations (first one is the default) |
+| ------ | ---------------- | ----------------------------------------------- |
+| F5     | 5                | 2-2  |
+| F6     | 6                | 2-2-1, 2-1-2 |
+| F7     | 7                | 2-2-2, 3-2-1, 2-3-1, 2-1-3, 3-1-2 |
+| F8     | 8                | 3-2-2, 3-3-1, 2-3-2, 3-1-3, 2-4-1, 4-2-1, 4-1-2, 2-2-3, 3-1-2-1, 3-2-1-1, 2-3-1-1, 2-1-3-1 |
+| F11    | 11               | 4-3-3, 4-4-2, 4-2-3-1, 4-5-1, 4-1-4-1, 4-4-1-1, 4-3-2-1, 4-3-1-2, 4-1-2-1-2, 4-2-2-2, 4-1-3-2, 4-2-4, 3-5-2, 3-4-3, 3-4-1-2, 3-4-2-1, 3-1-4-2, 3-5-1-1, 3-3-3-1, 5-3-2, 5-4-1, 5-2-3, 5-2-1-2 |
+
+Formations with up to six options are shown as buttons; F8 and F11 use a drop-down list. Changing the format resets both teams to that format's default formation.
+
+On the pitch, players are placed in slots that match their position first. Any remaining slots are filled with the players left over, and those slots are labeled with both roles; for example, `DEL (MED)` is a midfielder playing as a forward. The list of formations is defined in `formationOptions` in `app.tsx`.
 
 The **Generate** button stays disabled until the roster has enough players for the selected mode and format.
 
@@ -231,7 +237,5 @@ Because `npm run build` produces a fully static site, `dist/` can also be hosted
 ## Author
 
 **Juan Esteban Rodriguez**
-
-Bogotá D.C, Colombia, 2026
 
 - GitHub: [@JuanEstebanRodriguez2021](https://github.com/JuanEstebanRodriguez2021)
